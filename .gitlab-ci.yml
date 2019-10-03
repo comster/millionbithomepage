@@ -1,0 +1,113 @@
+image: node:12-buster
+
+variables:
+  AUTO_DEVOPS_DOMAIN: dev.millionbithomepage.wefav.com
+  POSTGRES_ENABLED: "false"
+  SITE_URL: $CI_ENVIRONMENT_SLUG.millionbithomepage.com
+#   IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+  IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+   # This reused value was made a variable to easily update per this known issue: https://gitlab.com/charts/gitlab/issues/478
+  DOCKER_DIND_IMAGE: docker:18.09.7-dind
+  
+stages:
+  - build
+  - test
+  - review
+  - staging
+  - production
+  - cleanup
+
+build:
+  stage: build
+  image: docker:git
+  services:
+  - $DOCKER_DIND_IMAGE
+  variables:
+    DOCKER_DRIVER: overlay
+  script:
+    - setup_docker
+    - build
+  only:
+    refs:
+      - master
+
+staging:
+  image: $IMAGE_TAG
+  stage: staging
+  script:
+    - cd /usr/src/app
+    - npm run build
+    - ensure_s3_bucket "$AWS_S3_BUCKET_WEBSITE_STAGING"
+    - aws s3 sync dist s3://$AWS_S3_BUCKET_WEBSITE_STAGING --delete --acl public-read --region="us-west-2"
+  environment:
+    name: $CI_PROJECT_PATH_SLUG-staging
+    url: http://staging.millionbithomepage.com
+  variables:
+    APP_ENV: production
+  only:
+    refs:
+      - master
+    kubernetes: active
+
+production:
+  image: $IMAGE_TAG
+  stage: production
+  script:
+    - cd /usr/src/app
+    - npm run build
+    - ensure_s3_bucket "$AWS_S3_BUCKET_WEBSITE"
+    - aws s3 sync dist s3://$AWS_S3_BUCKET_WEBSITE --delete --acl public-read --region="us-west-2"
+  environment:
+    name: $CI_PROJECT_PATH_SLUG-production
+    url: http://millionbithomepage.com
+  variables:
+    APP_ENV: production
+  when: manual
+  only:
+    refs:
+      - master
+    kubernetes: active
+
+
+.auto_devops: &auto_devops |
+  # Auto DevOps variables and functions
+  [[ "$TRACE" ]] && set -x
+
+  function ensure_s3_bucket() {
+    echo "Ensure bucket exists $1"
+    ./scripts/ensure_s3_bucket.sh "$1"
+  }
+  
+  function delete_bucket() {
+    echo "Delete bucket $1"
+    ./scripts/delete_s3_bucket.sh "$1"
+  }
+  
+  function setup_docker() {
+    if ! docker info &>/dev/null; then
+      if [ -z "$DOCKER_HOST" -a "$KUBERNETES_PORT" ]; then
+        export DOCKER_HOST='tcp://localhost:2375'
+      fi
+    fi
+  }
+
+  function build() {
+    if [[ -n "$CI_REGISTRY_USER" ]]; then
+      echo "Logging to GitLab Container Registry with CI credentials..."
+      docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+      echo ""
+    fi
+    
+    if [[ -f Dockerfile ]]; then
+      echo "Building Dockerfile-based application..."
+      docker build -t $IMAGE_TAG .
+    fi
+
+    echo "Pushing to GitLab Container Registry..."
+    docker push $IMAGE_TAG
+    echo ""
+  }
+
+
+before_script:
+  - *auto_devops

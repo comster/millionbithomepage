@@ -2,7 +2,7 @@
 
 Javascript application for the [Million Bit Homepage](https://millionbithomepage.com/).
 
-The goal of this project is to serve as a static and serverless application that allows submitting transactions on the etheruem blockchain that include data payloads containing image and position data.
+The goal of this project is to serve as a static and serverless application that allows submitting transactions on the ethereum blockchain that include data payloads containing image and position data.
 
 
 ## 🔨  Development

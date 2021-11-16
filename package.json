@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "async": "^3.1.0",
-    "aws-sdk": "^2.529.0",
+    "aws-sdk": "^2.814.0",
     "bootstrap": "latest",
     "bootstrap-vue": "latest",
     "canvas": "^2.6.0",

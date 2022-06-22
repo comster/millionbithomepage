@@ -14,7 +14,7 @@
     "lint": "eslint --ext .js,.vue src test/unit/specs test/e2e/specs"
   },
   "dependencies": {
-    "async": "^3.1.0",
+    "async": "^3.2.2",
     "aws-sdk": "^2.529.0",
     "bootstrap": "latest",
     "bootstrap-vue": "latest",
